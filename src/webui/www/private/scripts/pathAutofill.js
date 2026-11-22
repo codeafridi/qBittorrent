@@ -64,17 +64,35 @@ window.qBittorrent.pathAutofill ??= (() => {
         }
     };
 
+    const normalizePath = (path) => path.replace(/\\/g, "/").toLowerCase();
+
     const showPathSuggestions = (element, mode) => {
         const partialPath = element.value;
         if (partialPath === "")
             return;
 
-        fetch(`api/v2/app/getDirectoryContent?dirPath=${partialPath}&mode=${mode}`, {
+        // Request the parent directory and filter the result locally, so that
+        // suggestions also work while the typed path is still incomplete.
+        const separatorIndex = Math.max(partialPath.lastIndexOf("/"), partialPath.lastIndexOf("\\"));
+        if (separatorIndex < 0)
+            return;
+
+        let parentPath = partialPath.slice(0, separatorIndex);
+        if (parentPath === "")
+            parentPath = "/";
+        else if ((parentPath.length === 2) && (parentPath[1] === ":"))
+            parentPath += "\\";
+
+        fetch(`api/v2/app/getDirectoryContent?dirPath=${encodeURIComponent(parentPath)}&mode=${mode}`, {
                 method: "GET",
                 cache: "no-store"
             })
             .then(response => response.json())
-            .then(filesList => { showInputSuggestions(element, filesList); })
+            .then(filesList => {
+                const normalizedPartialPath = normalizePath(partialPath);
+                const suggestions = filesList.filter(path => normalizePath(path).startsWith(normalizedPartialPath));
+                showInputSuggestions(element, suggestions);
+            })
             .catch(error => {});
     };
 
